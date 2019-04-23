@@ -17,5 +17,9 @@
     "level": "^5.0.1",
     "opn": "^6.0.0",
     "server-destroy": "^1.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^5.16.0",
+    "eslint-config-google": "^0.12.0"
   }
 }

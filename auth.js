@@ -34,21 +34,21 @@ class Auth {
     }
 
     this.db = level(this._options.dbPath);
-  
-    this.redirectUri = this.keys.redirect_uris.find(uri => {
-        const parts = new url.URL(uri);
-        return parts.hostname === 'localhost';
+
+    this.redirectUri = this.keys.redirect_uris.find((uri) => {
+      const parts = new url.URL(uri);
+      return parts.hostname === 'localhost';
     });
 
     this.oAuth2Client = new google.auth.OAuth2(
-      this.keys.client_id,
-      this.keys.client_secret,
-      this.redirectUri
+        this.keys.client_id,
+        this.keys.client_secret,
+        this.redirectUri
     );
   }
 
   async loadUserCredentials(userKey) {
-    let key = `${this.oAuth2Client._clientId}/${userKey}`;
+    const key = `${this.oAuth2Client._clientId}/${userKey}`;
     try {
       return await this.db.get(key);
     } catch (e) {
@@ -57,12 +57,12 @@ class Auth {
   }
 
   async saveUserCredentials(userKey, credentials) {
-    let key = `${this.oAuth2Client._clientId}/${userKey}`;
+    const key = `${this.oAuth2Client._clientId}/${userKey}`;
     return this.db.put(key, JSON.stringify(credentials));
   }
 
   async getCredentialsOrAuthorize(userKey, scopes) {
-    let credentials = await this.loadUserCredentials(userKey);
+    const credentials = await this.loadUserCredentials(userKey);
     if (credentials) {
       this.oAuth2Client.credentials = JSON.parse(credentials);
       return this.oAuth2Client;
@@ -71,11 +71,11 @@ class Auth {
   }
 
   async _authWithLocalServer(userKey, scopes) {
-    let redirectUri = (port) => {
-      let u = new url.URL(this.redirectUri);
+    const redirectUri = (port) => {
+      const u = new url.URL(this.redirectUri);
       u.port = port;
       return u.toString();
-    }
+    };
     return new Promise((resolve, reject) => {
       // grab the url that will be used for authorization
       const server = http.createServer(async (req, res) => {
@@ -90,11 +90,11 @@ class Auth {
 
         try {
           res.end(
-            'Authentication successful! Please return to the console.'
+              'Authentication successful! Please return to the console.'
           );
-          const { tokens } = await this.oAuth2Client.getToken({
-              code: qs.code,
-              redirect_uri: redirectUri(server.address().port)
+          const {tokens} = await this.oAuth2Client.getToken({
+            code: qs.code,
+            redirect_uri: redirectUri(server.address().port),
           });
           this.oAuth2Client.credentials = tokens;
           await this.saveUserCredentials(userKey, tokens);
@@ -108,9 +108,9 @@ class Auth {
         this.authorizeUrl = this.oAuth2Client.generateAuthUrl({
           access_type: 'offline',
           scope: scopes.join(' '),
-          redirect_uri: redirectUri(server.address().port)
+          redirect_uri: redirectUri(server.address().port),
         });
-        opn(this.authorizeUrl, {wait: false}).then(cp => cp.unref());
+        opn(this.authorizeUrl, {wait: false}).then((cp) => cp.unref());
       });
       destroyer(server);
     });

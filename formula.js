@@ -13,10 +13,10 @@
 // limitations under the License.
 
 const opn = require('opn');
-const { GifUtil } = require('gifwrap');
-const { google } = require('googleapis');
-const { LocalAuth } = require('./auth');
-const { buildResizeRequests, numberToColor, getColorForPixel } = require('./utils');
+const {GifUtil} = require('gifwrap');
+const {google} = require('googleapis');
+const {LocalAuth} = require('./auth');
+const {buildResizeRequests, numberToColor, getColorForPixel} = require('./utils');
 
 const auth = new LocalAuth();
 const sheets = google.sheets({
@@ -24,145 +24,145 @@ const sheets = google.sheets({
   auth: auth.oAuth2Client,
 });
 
-let frameRef = '$A$1';
+const frameRef = '$A$1';
 
 async function processImage(fileName) {
-    let res = await sheets.spreadsheets.create({});
-    let spreadsheetId = res.data.spreadsheetId;
+  let res = await sheets.spreadsheets.create({});
+  const spreadsheetId = res.data.spreadsheetId;
 
-    opn(res.data.spreadsheetUrl);
+  opn(res.data.spreadsheetUrl);
 
-    let gif = await GifUtil.read(fileName);
-    GifUtil.quantizeDekker(gif.frames, 16);
+  const gif = await GifUtil.read(fileName);
+  GifUtil.quantizeDekker(gif.frames, 16);
 
-    let requests = buildResizeRequests(gif.height, gif.width, 1, 1);
+  let requests = buildResizeRequests(gif.height, gif.width, 1, 1);
 
-    requests.push({
-        updateCells: {
-            range: {
-                startRowIndex: 0,
-                endRowIndex: 1,
-                startColumnIndex: 0,
-                endColumnIndex: 2
+  requests.push({
+    updateCells: {
+      range: {
+        startRowIndex: 0,
+        endRowIndex: 1,
+        startColumnIndex: 0,
+        endColumnIndex: 2,
+      },
+      fields: '*',
+      rows: [
+        {
+          values: [
+            {
+              userEnteredValue: {
+                numberValue: 1,
+              },
             },
-            fields: '*',
-            rows: [
-                {
-                    values: [
-                        {
-                            userEnteredValue: {
-                                numberValue: 1
-                            }
-                        },
-                        {
-                            userEnteredValue: {
-                                numberValue: gif.frames.length
-                            }
-                        }
-                    ]
-                }
-            ]
-        }
-    });
+            {
+              userEnteredValue: {
+                numberValue: gif.frames.length,
+              },
+            },
+          ],
+        },
+      ],
+    },
+  });
 
-    let rows = [];    
-    for(let y = 0; y < gif.height; ++y) {
-        let row = []
-        for(let x = 0; x < gif.width; ++x) {
-            row.push({
-                userEnteredValue: {
-                    formulaValue: cellValue(x, y, gif)
-                }
-            });
-        }
-        rows.push({
-            values: row
-        });
+  const rows = [];
+  for (let y = 0; y < gif.height; ++y) {
+    const row = [];
+    for (let x = 0; x < gif.width; ++x) {
+      row.push({
+        userEnteredValue: {
+          formulaValue: cellValue(x, y, gif),
+        },
+      });
     }
-    // Image data
-    requests.push({
-        updateCells: {
-            range: {
-                startRowIndex: 1,
-                startColumnIndex: 1,
-            },
-            fields: '*',
-            rows: rows
-        }  
+    rows.push({
+      values: row,
     });
-    
-    let imageRange = {
-        startRowIndex: 2,
-        endRowIndex: 2 + gif.height,
-        startColumnIndex: 2,
-        endColumnIndex: 2 + gif.width
-    };
-    let colors = Array.from(getPalette(gif).values());
-    let formatRequests = colors.map((c, i) => conditionalFormatRuleForColor(c, i, imageRange));
-    requests = requests.concat(formatRequests);
+  }
+  // Image data
+  requests.push({
+    updateCells: {
+      range: {
+        startRowIndex: 1,
+        startColumnIndex: 1,
+      },
+      fields: '*',
+      rows: rows,
+    },
+  });
 
-    res = await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: spreadsheetId,
-        requestBody: {
-            requests: requests,
-            includeSpreadsheetInResponse: false
-        }
-    });
-    return spreadsheetId
+  const imageRange = {
+    startRowIndex: 2,
+    endRowIndex: 2 + gif.height,
+    startColumnIndex: 2,
+    endColumnIndex: 2 + gif.width,
+  };
+  const colors = Array.from(getPalette(gif).values());
+  const formatRequests = colors.map((c, i) => conditionalFormatRuleForColor(c, i, imageRange));
+  requests = requests.concat(formatRequests);
+
+  res = await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: spreadsheetId,
+    requestBody: {
+      requests: requests,
+      includeSpreadsheetInResponse: false,
+    },
+  });
+  return spreadsheetId;
 }
 
 function conditionalFormatRuleForColor(color, index, range) {
-    let parsedColor = numberToColor(color);
-    return {
-        addConditionalFormatRule: {
-            rule: {
-                ranges: [
-                    range
-                ],
-                booleanRule: {
-                    condition: {
-                        type: 'NUMBER_EQ',
-                        values: [
-                            {
-                                userEnteredValue: `${color}`
-                            }
-                        ]
-                    },
-                    format: {
-                        backgroundColor: parsedColor,
-                        textFormat: {
-                            foregroundColor: parsedColor
-                        }
-                    }
-                },
+  const parsedColor = numberToColor(color);
+  return {
+    addConditionalFormatRule: {
+      rule: {
+        ranges: [
+          range,
+        ],
+        booleanRule: {
+          condition: {
+            type: 'NUMBER_EQ',
+            values: [
+              {
+                userEnteredValue: `${color}`,
+              },
+            ],
+          },
+          format: {
+            backgroundColor: parsedColor,
+            textFormat: {
+              foregroundColor: parsedColor,
             },
-            index: index
-        }
-    }
+          },
+        },
+      },
+      index: index,
+    },
+  };
 }
 
 function getPalette(gif) {
-    let palette = [];
-    gif.frames.forEach((f,i) => {
-        palette = palette.concat(f.getPalette().colors);
-    })
-    return new Set(palette);
+  let palette = [];
+  gif.frames.forEach((f, i) => {
+    palette = palette.concat(f.getPalette().colors);
+  });
+  return new Set(palette);
 }
 
 function cellValue(x, y, gif) {
-    let values = gif.frames.map((frame, i) => getColorForPixel(gif, x, y, i));
-    return `=CHOOSE(${frameRef}, ${values.join(', ')})`;
+  const values = gif.frames.map((frame, i) => getColorForPixel(gif, x, y, i));
+  return `=CHOOSE(${frameRef}, ${values.join(', ')})`;
 }
 
 if (module === require.main) {
-    const scopes = [
-        'https://www.googleapis.com/auth/drive',
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/spreadsheets',
-    ];
-    const [filename] = process.argv.slice(2);
-    auth.getCredentialsOrAuthorize('default', scopes)
-    .then(() => processImage(filename))
-    .then(id => console.log('Spreadsheet ID: ', id))
-    .catch(console.error);  
+  const scopes = [
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/spreadsheets',
+  ];
+  const [filename] = process.argv.slice(2);
+  auth.getCredentialsOrAuthorize('default', scopes)
+      .then(() => processImage(filename))
+      .then((id) => console.log('Spreadsheet ID: ', id))
+      .catch(console.error);
 }

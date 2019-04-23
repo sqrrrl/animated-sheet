@@ -13,10 +13,10 @@
 // limitations under the License.
 
 const opn = require('opn');
-const { GifUtil } = require('gifwrap');
-const { google } = require('googleapis');
-const { LocalAuth } = require('./auth');
-const { buildResizeRequests, numberToColor, getColorForPixel } = require('./utils');
+const {GifUtil} = require('gifwrap');
+const {google} = require('googleapis');
+const {LocalAuth} = require('./auth');
+const {buildResizeRequests, numberToColor, getColorForPixel} = require('./utils');
 
 const auth = new LocalAuth();
 const sheets = google.sheets({
@@ -25,83 +25,82 @@ const sheets = google.sheets({
 });
 
 async function processImage(fileName, spreadsheetId) {
-    if (!spreadsheetId) {
-        let res = await sheets.spreadsheets.create({
-        });
-        spreadsheetId = res.data.spreadsheetId;
-        opn(res.data.spreadsheetUrl);
-    }
+  if (!spreadsheetId) {
+    const res = await sheets.spreadsheets.create({
+    });
+    spreadsheetId = res.data.spreadsheetId;
+    opn(res.data.spreadsheetUrl);
+  }
 
-    let gif = await GifUtil.read(fileName);
+  const gif = await GifUtil.read(fileName);
 
-    let requests = buildResizeRequests(gif.height, gif.width, 0, 0);
+  const requests = buildResizeRequests(gif.height, gif.width, 0, 0);
 
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: spreadsheetId,
+    requestBody: {
+      requests: requests,
+      includeSpreadsheetInResponse: false,
+    },
+  });
+
+  let frame = 0;
+  for (let i = 0; i < 100; ++i) {
+    const frameRequests = buildFrameRequests(gif, frame);
     await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: spreadsheetId,
-        requestBody: {
-            requests: requests,
-            includeSpreadsheetInResponse: false
-        }
+      spreadsheetId: spreadsheetId,
+      requestBody: {
+        requests: frameRequests,
+        includeSpreadsheetInResponse: false,
+      },
     });
 
-    let frame = 0;
-    for(let i = 0; i < 100; ++i) {
-        let frameRequests = buildFrameRequests(gif, frame);
-        await sheets.spreadsheets.batchUpdate({
-            spreadsheetId: spreadsheetId,
-            requestBody: {
-                requests: frameRequests,
-                includeSpreadsheetInResponse: false
-            }
-        });
-
-        frame = (frame + 1) % gif.frames.length;
-
-    }
-    return spreadsheetId
+    frame = (frame + 1) % gif.frames.length;
+  }
+  return spreadsheetId;
 }
 
 function buildFrameRequests(gif, frame) {
-    let frameRequests = [];
-    let rows = [];
-    for (let y = 0; y < gif.height; ++y) {
-        let row = [];
-        for (let x = 0; x < gif.width; ++x) {
-            let color = getColorForPixel(gif, x, y, frame);
-            row.push({
-                userEnteredFormat: {
-                    backgroundColor: numberToColor(color)
-                }
-            });
-        }
-        rows.push({
-            values: row
-        });
+  const frameRequests = [];
+  const rows = [];
+  for (let y = 0; y < gif.height; ++y) {
+    const row = [];
+    for (let x = 0; x < gif.width; ++x) {
+      const color = getColorForPixel(gif, x, y, frame);
+      row.push({
+        userEnteredFormat: {
+          backgroundColor: numberToColor(color),
+        },
+      });
     }
-    // Image data
-    frameRequests.push({
-        updateCells: {
-            range: {
-                startRowIndex: 0,
-                startColumnIndex: 0,
-            },
-            fields: '*',
-            rows: rows
-        }
+    rows.push({
+      values: row,
     });
-    return frameRequests;
+  }
+  // Image data
+  frameRequests.push({
+    updateCells: {
+      range: {
+        startRowIndex: 0,
+        startColumnIndex: 0,
+      },
+      fields: '*',
+      rows: rows,
+    },
+  });
+  return frameRequests;
 }
 
 
 if (module === require.main) {
-    const scopes = [
-        'https://www.googleapis.com/auth/drive',
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/spreadsheets',
-    ];
-    const [filename, spreadsheetId] = process.argv.slice(2);
-    auth.getCredentialsOrAuthorize('default', scopes)
-        .then(() => processImage(filename,spreadsheetId))
-        .then(id => console.log('Spreadsheet ID: ', id))
-        .catch(console.error);  
-  }
+  const scopes = [
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/spreadsheets',
+  ];
+  const [filename, spreadsheetId] = process.argv.slice(2);
+  auth.getCredentialsOrAuthorize('default', scopes)
+      .then(() => processImage(filename, spreadsheetId))
+      .then((id) => console.log('Spreadsheet ID: ', id))
+      .catch(console.error);
+}
